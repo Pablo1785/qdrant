@@ -32,7 +32,7 @@ pub trait PayloadFieldIndex {
     fn filter(
         &self,
         condition: &FieldCondition,
-    ) -> Option<Box<dyn Iterator<Item = PointOffsetType> + '_>>;
+    ) -> OperationResult<Option<Box<dyn Iterator<Item = PointOffsetType> + '_>>>;
 
     /// Return estimation of points amount which satisfy given condition
     fn estimate_cardinality(&self, condition: &FieldCondition) -> Option<CardinalityEstimation>;
@@ -225,7 +225,7 @@ impl FieldIndex {
     pub fn filter(
         &self,
         condition: &FieldCondition,
-    ) -> Option<Box<dyn Iterator<Item = PointOffsetType> + '_>> {
+    ) -> OperationResult<Option<Box<dyn Iterator<Item = PointOffsetType> + '_>>> {
         self.get_payload_field_index().filter(condition)
     }
 

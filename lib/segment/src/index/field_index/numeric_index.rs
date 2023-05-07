@@ -315,8 +315,12 @@ impl<T: Encodable + Numericable> PayloadFieldIndex for NumericIndex<T> {
     fn filter(
         &self,
         condition: &FieldCondition,
-    ) -> Option<Box<dyn Iterator<Item = PointOffsetType> + '_>> {
-        let cond_range = condition.range.as_ref()?;
+    ) -> OperationResult<Option<Box<dyn Iterator<Item = PointOffsetType> + '_>>> {
+        let cond_range = if let Some(val) = condition.range.as_ref() {
+            val
+        } else {
+            return Ok(None);
+        };
 
         let start_bound = match cond_range {
             Range { gt: Some(gt), .. } => {
@@ -347,18 +351,18 @@ impl<T: Encodable + Numericable> PayloadFieldIndex for NumericIndex<T> {
         match (&start_bound, &end_bound) {
             (Excluded(s), Excluded(e)) if s == e => {
                 // range start and end are equal and excluded in BTreeMap
-                return Some(Box::new(vec![].into_iter()));
+                return Ok(Some(Box::new(vec![].into_iter())));
             }
             (Included(s) | Excluded(s), Included(e) | Excluded(e)) if s > e => {
                 //range start is greater than range end
-                return Some(Box::new(vec![].into_iter()));
+                return Ok(Some(Box::new(vec![].into_iter())));
             }
             _ => {}
         }
 
-        Some(Box::new(
+        Ok(Some(Box::new(
             self.map.range((start_bound, end_bound)).map(|(_, v)| *v),
-        ))
+        )))
     }
 
     fn estimate_cardinality(&self, condition: &FieldCondition) -> Option<CardinalityEstimation> {
@@ -530,6 +534,7 @@ mod tests {
 
         let result = index
             .filter(&FieldCondition::new_range("".to_string(), query))
+            .unwrap()
             .unwrap()
             .unique()
             .collect_vec();
@@ -797,7 +802,7 @@ mod tests {
             values_count: None,
         };
 
-        let offsets = index.filter(&condition).unwrap().collect_vec();
+        let offsets = index.filter(&condition).unwrap().unwrap().collect_vec();
 
         assert_eq!(offsets, result);
     }
