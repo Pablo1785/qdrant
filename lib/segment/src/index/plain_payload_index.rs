@@ -29,6 +29,8 @@ use crate::types::{
 };
 use crate::vector_storage::{new_raw_scorer, ScoredPointOffset, VectorStorageEnum};
 
+use super::field_index::full_text_index::InvertedIndex;
+
 /// Implementation of `PayloadIndex` which does not really indexes anything.
 ///
 /// Used for small segments, which are easier to keep simple for faster updates,
@@ -203,20 +205,20 @@ impl PayloadIndex for PlainPayloadIndex {
     }
 }
 
-pub struct PlainIndex {
+pub struct PlainIndex<I: InvertedIndex> {
     id_tracker: Arc<AtomicRefCell<IdTrackerSS>>,
     vector_storage: Arc<AtomicRefCell<VectorStorageEnum>>,
-    payload_index: Arc<AtomicRefCell<StructPayloadIndex>>,
+    payload_index: Arc<AtomicRefCell<StructPayloadIndex<I>>>,
     filtered_searches_telemetry: Arc<Mutex<OperationDurationsAggregator>>,
     unfiltered_searches_telemetry: Arc<Mutex<OperationDurationsAggregator>>,
 }
 
-impl PlainIndex {
+impl<I: InvertedIndex> PlainIndex<I> {
     pub fn new(
         id_tracker: Arc<AtomicRefCell<IdTrackerSS>>,
         vector_storage: Arc<AtomicRefCell<VectorStorageEnum>>,
-        payload_index: Arc<AtomicRefCell<StructPayloadIndex>>,
-    ) -> PlainIndex {
+        payload_index: Arc<AtomicRefCell<StructPayloadIndex<I>>>,
+    ) -> Self {
         PlainIndex {
             id_tracker,
             vector_storage,
@@ -227,7 +229,7 @@ impl PlainIndex {
     }
 }
 
-impl VectorIndex for PlainIndex {
+impl<I: InvertedIndex> VectorIndex for PlainIndex<I> {
     fn search(
         &self,
         vectors: &[&[VectorElementType]],

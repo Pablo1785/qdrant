@@ -3,6 +3,7 @@ use std::path::Path;
 
 use crate::data_types::vectors::DEFAULT_VECTOR_NAME;
 use crate::entry::entry_point::OperationResult;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::segment::Segment;
 use crate::segment_constructor::build_segment;
 use crate::types::{Distance, Indexes, SegmentConfig, VectorDataConfig, VectorStorageType};
@@ -17,7 +18,7 @@ pub fn build_simple_segment(
     path: &Path,
     dim: usize,
     distance: Distance,
-) -> OperationResult<Segment> {
+) -> OperationResult<Segment<impl InvertedIndex>> {
     build_segment(
         path,
         &SegmentConfig {
@@ -41,7 +42,7 @@ pub fn build_multivec_segment(
     dim1: usize,
     dim2: usize,
     distance: Distance,
-) -> OperationResult<Segment> {
+) -> OperationResult<Segment<impl InvertedIndex>> {
     let mut vectors_config = HashMap::new();
     vectors_config.insert(
         "vector1".to_owned(),

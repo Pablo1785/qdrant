@@ -35,16 +35,18 @@ use crate::types::{
     PayloadKeyTypeRef, PayloadSchemaType, PointOffsetType,
 };
 
+use super::field_index::full_text_index::InvertedIndex;
+
 pub const PAYLOAD_FIELD_INDEX_PATH: &str = "fields";
 
 /// `PayloadIndex` implementation, which actually uses index structures for providing faster search
-pub struct StructPayloadIndex {
+pub struct StructPayloadIndex<I: InvertedIndex> {
     /// Payload storage
     payload: Arc<AtomicRefCell<PayloadStorageEnum>>,
     /// Used for `has_id` condition and estimating cardinality
     id_tracker: Arc<AtomicRefCell<IdTrackerSS>>,
     /// Indexes, associated with fields
-    pub field_indexes: IndexesMap,
+    pub field_indexes: IndexesMap<I>,
     config: PayloadConfig,
     /// Root of index persistence dir
     path: PathBuf,
@@ -53,7 +55,7 @@ pub struct StructPayloadIndex {
     db: Arc<RwLock<DB>>,
 }
 
-impl StructPayloadIndex {
+impl<I: InvertedIndex> StructPayloadIndex<I> {
     pub fn estimate_field_condition(
         &self,
         condition: &FieldCondition,
@@ -117,7 +119,7 @@ impl StructPayloadIndex {
     }
 
     fn load_all_fields(&mut self) -> OperationResult<()> {
-        let mut field_indexes: IndexesMap = Default::default();
+        let mut field_indexes: IndexesMap<I> = Default::default();
 
         for (field, payload_schema) in &self.config.indexed_fields {
             let field_index = self.load_from_db(field, payload_schema.to_owned())?;
@@ -131,7 +133,7 @@ impl StructPayloadIndex {
         &self,
         field: PayloadKeyTypeRef,
         payload_schema: PayloadFieldSchema,
-    ) -> OperationResult<Vec<FieldIndex>> {
+    ) -> OperationResult<Vec<FieldIndex<I>>> {
         let mut indexes = index_selector(field, &payload_schema, self.db.clone());
 
         let mut is_loaded = true;
@@ -189,7 +191,7 @@ impl StructPayloadIndex {
         &self,
         field: PayloadKeyTypeRef,
         payload_schema: PayloadFieldSchema,
-    ) -> OperationResult<Vec<FieldIndex>> {
+    ) -> OperationResult<Vec<FieldIndex<I>>> {
         let payload_storage = self.payload.borrow();
         let mut field_indexes = index_selector(field, &payload_schema, self.db.clone());
         for index in &field_indexes {
@@ -348,7 +350,7 @@ impl StructPayloadIndex {
     }
 }
 
-impl PayloadIndex for StructPayloadIndex {
+impl<I: InvertedIndex> PayloadIndex for StructPayloadIndex<I> {
     fn indexed_fields(&self) -> HashMap<PayloadKeyType, PayloadFieldSchema> {
         self.config.indexed_fields.clone()
     }

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
+use super::field_index::full_text_index::InvertedIndex;
 use super::hnsw_index::graph_links::{GraphLinksMmap, GraphLinksRam};
 use super::hnsw_index::hnsw::HNSWIndex;
 use super::plain_payload_index::PlainIndex;
@@ -35,13 +36,13 @@ pub trait VectorIndex {
     fn is_appendable(&self) -> bool;
 }
 
-pub enum VectorIndexEnum {
-    Plain(PlainIndex),
-    HnswRam(HNSWIndex<GraphLinksRam>),
-    HnswMmap(HNSWIndex<GraphLinksMmap>),
+pub enum VectorIndexEnum<I: InvertedIndex> {
+    Plain(PlainIndex<I>),
+    HnswRam(HNSWIndex<GraphLinksRam, I>),
+    HnswMmap(HNSWIndex<GraphLinksMmap, I>),
 }
 
-impl VectorIndexEnum {
+impl<I: InvertedIndex> VectorIndexEnum<I> {
     pub fn is_index(&self) -> bool {
         match self {
             Self::Plain(_) => false,
@@ -51,7 +52,7 @@ impl VectorIndexEnum {
     }
 }
 
-impl VectorIndex for VectorIndexEnum {
+impl<I: InvertedIndex> VectorIndex for VectorIndexEnum<I> {
     fn search(
         &self,
         vectors: &[&[VectorElementType]],

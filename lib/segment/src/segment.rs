@@ -22,6 +22,7 @@ use crate::entry::entry_point::{
 };
 use crate::id_tracker::IdTrackerSS;
 use crate::index::field_index::CardinalityEstimation;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::struct_payload_index::StructPayloadIndex;
 use crate::index::{PayloadIndex, VectorIndex, VectorIndexEnum};
 use crate::spaces::tools::peek_top_smallest_iterable;
@@ -57,7 +58,7 @@ impl StorageVersion for SegmentVersion {
 /// - Keeps track of point versions
 /// - Persists data
 /// - Keeps track of occurred errors
-pub struct Segment {
+pub struct Segment<I: InvertedIndex> {
     /// Latest update operation number, applied to this segment
     /// If None, there were no updates and segment is empty
     pub version: Option<SeqNumberType>,
@@ -67,8 +68,8 @@ pub struct Segment {
     pub current_path: PathBuf,
     /// Component for mapping external ids to internal and also keeping track of point versions
     pub id_tracker: Arc<AtomicRefCell<IdTrackerSS>>,
-    pub vector_data: HashMap<String, VectorData>,
-    pub payload_index: Arc<AtomicRefCell<StructPayloadIndex>>,
+    pub vector_data: HashMap<String, VectorData<I>>,
+    pub payload_index: Arc<AtomicRefCell<StructPayloadIndex<I>>>,
     /// Shows if it is possible to insert more points into this segment
     pub appendable_flag: bool,
     /// Shows what kind of indexes and storages are used in this segment
@@ -81,12 +82,12 @@ pub struct Segment {
     pub flush_thread: Mutex<Option<JoinHandle<OperationResult<SeqNumberType>>>>,
 }
 
-pub struct VectorData {
-    pub vector_index: Arc<AtomicRefCell<VectorIndexEnum>>,
+pub struct VectorData<I: InvertedIndex> {
+    pub vector_index: Arc<AtomicRefCell<VectorIndexEnum<I>>>,
     pub vector_storage: Arc<AtomicRefCell<VectorStorageEnum>>,
 }
 
-impl VectorData {
+impl<I: InvertedIndex> VectorData<I> {
     /// Whether this vector data can be appended to
     ///
     /// This requires an index and storage type that both support appending.
@@ -95,7 +96,7 @@ impl VectorData {
     }
 }
 
-impl Segment {
+impl<I: InvertedIndex> Segment<I> {
     /// Replace vectors in-place
     ///
     /// This replaces all named vectors for this point with the given set of named vectors.
@@ -216,7 +217,7 @@ impl Segment {
         operation: F,
     ) -> OperationResult<bool>
     where
-        F: FnOnce(&mut Segment) -> OperationResult<(bool, Option<PointOffsetType>)>,
+        F: FnOnce(&mut Segment<I>) -> OperationResult<(bool, Option<PointOffsetType>)>,
     {
         if let Some(SegmentFailedState {
             version: failed_version,
@@ -281,7 +282,7 @@ impl Segment {
         operation: F,
     ) -> OperationResult<bool>
     where
-        F: FnOnce(&mut Segment) -> OperationResult<(bool, Option<PointOffsetType>)>,
+        F: FnOnce(&mut Segment<I>) -> OperationResult<(bool, Option<PointOffsetType>)>,
     {
         match op_point_offset {
             None => {
@@ -666,7 +667,7 @@ impl Segment {
 
 /// This is a basic implementation of `SegmentEntry`,
 /// meaning that it implements the _actual_ operations with data and not any kind of proxy or wrapping
-impl SegmentEntry for Segment {
+impl<I: InvertedIndex> SegmentEntry for Segment<I> {
     fn version(&self) -> SeqNumberType {
         self.version.unwrap_or(0)
     }
@@ -1457,7 +1458,7 @@ impl SegmentEntry for Segment {
     }
 }
 
-impl Drop for Segment {
+impl<I: InvertedIndex> Drop for Segment<I> {
     fn drop(&mut self) {
         let _lock = self.lock_flushing();
     }

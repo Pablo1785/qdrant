@@ -16,6 +16,7 @@ use crate::common::version::StorageVersion;
 use crate::data_types::vectors::DEFAULT_VECTOR_NAME;
 use crate::entry::entry_point::{OperationError, OperationResult};
 use crate::id_tracker::simple_id_tracker::SimpleIdTracker;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::hnsw_index::graph_links::{GraphLinksMmap, GraphLinksRam};
 use crate::index::hnsw_index::hnsw::HNSWIndex;
 use crate::index::plain_payload_index::PlainIndex;
@@ -64,7 +65,7 @@ fn create_segment(
     version: Option<SeqNumberType>,
     segment_path: &Path,
     config: &SegmentConfig,
-) -> OperationResult<Segment> {
+) -> OperationResult<Segment<impl InvertedIndex>> {
     let vector_db_names: Vec<String> = config
         .vector_data
         .keys()
@@ -184,7 +185,7 @@ fn create_segment(
     })
 }
 
-pub fn load_segment(path: &Path) -> OperationResult<Option<Segment>> {
+pub fn load_segment(path: &Path) -> OperationResult<Option<Segment<impl InvertedIndex>>> {
     if !SegmentVersion::check_exists(path) {
         // Assume segment was not properly saved.
         // Server might have crashed before saving the segment fully.
@@ -241,7 +242,7 @@ pub fn load_segment(path: &Path) -> OperationResult<Option<Segment>> {
 /// * `config` - Segment configuration
 ///
 ///
-pub fn build_segment(path: &Path, config: &SegmentConfig) -> OperationResult<Segment> {
+pub fn build_segment(path: &Path, config: &SegmentConfig) -> OperationResult<Segment<impl InvertedIndex>> {
     let segment_path = path.join(Uuid::new_v4().to_string());
 
     std::fs::create_dir_all(&segment_path)?;

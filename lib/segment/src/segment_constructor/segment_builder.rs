@@ -8,6 +8,7 @@ use crate::common::error_logging::LogError;
 use crate::entry::entry_point::{
     check_process_stopped, OperationError, OperationResult, SegmentEntry,
 };
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::hnsw_index::max_rayon_threads;
 use crate::index::{PayloadIndex, VectorIndex};
 use crate::segment::Segment;
@@ -16,14 +17,14 @@ use crate::types::{Indexes, PayloadFieldSchema, PayloadKeyType, SegmentConfig};
 use crate::vector_storage::VectorStorage;
 
 /// Structure for constructing segment out of several other segments
-pub struct SegmentBuilder {
-    pub segment: Option<Segment>,
+pub struct SegmentBuilder<I: InvertedIndex> {
+    pub segment: Option<Segment<I>>,
     pub destination_path: PathBuf,
     pub temp_path: PathBuf,
     pub indexed_fields: HashMap<PayloadKeyType, PayloadFieldSchema>,
 }
 
-impl SegmentBuilder {
+impl<I: InvertedIndex> SegmentBuilder<I> {
     pub fn new(
         segment_path: &Path,
         temp_dir: &Path,
@@ -53,7 +54,7 @@ impl SegmentBuilder {
     ///
     /// * `bool` - if `true` - data successfully added, if `false` - process was interrupted
     ///
-    pub fn update_from(&mut self, other: &Segment, stopped: &AtomicBool) -> OperationResult<bool> {
+    pub fn update_from(&mut self, other: &Segment<I>, stopped: &AtomicBool) -> OperationResult<bool> {
         let self_segment = match &mut self.segment {
             Some(segment) => segment,
             None => {
@@ -183,7 +184,7 @@ impl SegmentBuilder {
         Ok(true)
     }
 
-    pub fn build(mut self, stopped: &AtomicBool) -> Result<Segment, OperationError> {
+    pub fn build(mut self, stopped: &AtomicBool) -> Result<Segment<I>, OperationError> {
         {
             let mut segment = self.segment.ok_or_else(|| {
                 OperationError::service_error("Segment building error: created segment not found")
@@ -218,7 +219,7 @@ impl SegmentBuilder {
         Ok(loaded_segment)
     }
 
-    fn update_quantization(segment: &Segment, stopped: &AtomicBool) -> OperationResult<()> {
+    fn update_quantization(segment: &Segment<I>, stopped: &AtomicBool) -> OperationResult<()> {
         let config = segment.config();
         for (vector_name, vector_data) in &segment.vector_data {
             if let Some(quantization) = config.quantization_config(vector_name) {

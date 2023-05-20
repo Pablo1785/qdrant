@@ -1,11 +1,12 @@
 use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap};
+use std::convert::Infallible;
 
 use serde::{Deserialize, Serialize};
 
 use super::posting_list::PostingList;
 use super::postings_iterator::intersect_postings_iterator;
-use crate::entry::entry_point::OperationResult;
+use crate::entry::entry_point::{OperationResult, OperationError};
 use crate::index::field_index::{CardinalityEstimation, PayloadBlockCondition, PrimaryCondition};
 use crate::types::{FieldCondition, Match, MatchText, PayloadKeyType, PointOffsetType};
 
@@ -53,7 +54,7 @@ impl ParsedQuery {
     }
 }
 
-pub(crate) trait InvertedIndex {
+pub trait InvertedIndex {
     type Document<'a>: Borrow<Document>
     where
         Self: 'a;
@@ -65,7 +66,7 @@ pub(crate) trait InvertedIndex {
         query: &ParsedQuery,
     ) -> OperationResult<Box<dyn Iterator<Item = PointOffsetType> + '_>>;
     fn get_points_count(&self) -> usize;
-    fn get_doc(&self, idx: PointOffsetType) -> Option<Self::Document<'_>>;
+    fn get_doc(&self, idx: PointOffsetType) -> OperationResult<Option<Self::Document<'_>>>;
     fn get_token_id(&self, token: &str) -> OperationResult<Option<u32>>;
 }
 
@@ -181,6 +182,7 @@ impl InvertedIndexInMemory {
 
 impl InvertedIndex for InvertedIndexInMemory {
     type Document<'a> = &'a Document;
+
     fn document_from_tokens(&mut self, tokens: &BTreeSet<String>) -> OperationResult<Document> {
         let mut document_tokens = vec![];
         for token in tokens {
@@ -250,7 +252,7 @@ impl InvertedIndex for InvertedIndexInMemory {
     fn filter(
         &self,
         query: &ParsedQuery,
-    ) -> OperationResult<Box<dyn Iterator<Item = PointOffsetType> + '_>> {
+    ) -> OperationResult<Box<dyn Iterator<Item = u32>>> {
         let postings_opt: Option<Vec<_>> = query
             .tokens
             .iter()
@@ -277,11 +279,11 @@ impl InvertedIndex for InvertedIndexInMemory {
         self.points_count
     }
 
-    fn get_doc(&self, idx: PointOffsetType) -> Option<Self::Document<'_>> {
+    fn get_doc(&self, idx: PointOffsetType) -> OperationResult<Option<&Document>> {
         if let Some(doc) = self.point_to_docs.get(idx as usize) {
-            doc.as_ref()
+            Ok(doc.as_ref())
         } else {
-            None
+            Ok(None)
         }
     }
 

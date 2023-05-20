@@ -5,6 +5,7 @@ use bitvec::prelude::BitVec;
 use serde_json::Value;
 
 use crate::common::utils::{IndexesMap, JsonPathPayload, MultiValue};
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::payload_storage::condition_checker::ValueChecker;
 use crate::types::{
     Condition, FieldCondition, Filter, IsEmptyCondition, IsNullCondition, OwnedPayloadRef, Payload,
@@ -140,7 +141,7 @@ pub fn nested_check_field_condition(
     field_condition: &FieldCondition,
     payload: &Payload,
     nested_path: &JsonPathPayload,
-    field_indexes: &IndexesMap,
+    field_indexes: &IndexesMap<impl InvertedIndex>,
 ) -> BitVec {
     let full_path = nested_path.extend(&field_condition.key);
     let field_values = payload.get_value(&full_path.path).values();

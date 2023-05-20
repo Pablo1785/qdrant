@@ -5,6 +5,7 @@ use itertools::Itertools;
 use crate::common::utils::{IndexesMap, JsonPathPayload};
 use crate::id_tracker::IdTrackerSS;
 use crate::index::field_index::CardinalityEstimation;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::query_estimator::{
     combine_must_estimations, combine_should_estimations, invert_estimation,
 };
@@ -39,7 +40,7 @@ use crate::types::{Condition, Filter};
 pub fn optimize_filter<'a, F>(
     filter: &'a Filter,
     id_tracker: &IdTrackerSS,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,
@@ -143,7 +144,7 @@ where
 fn convert_conditions<'a, F>(
     conditions: &'a [Condition],
     id_tracker: &IdTrackerSS,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,
@@ -195,7 +196,7 @@ where
 fn optimize_should<'a, F>(
     conditions: &'a [Condition],
     id_tracker: &IdTrackerSS,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,
@@ -221,7 +222,7 @@ where
 fn optimize_must<'a, F>(
     conditions: &'a [Condition],
     id_tracker: &IdTrackerSS,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,
@@ -247,7 +248,7 @@ where
 fn optimize_must_not<'a, F>(
     conditions: &'a [Condition],
     id_tracker: &IdTrackerSS,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,

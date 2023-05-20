@@ -210,14 +210,14 @@ impl DatabaseColumnWrapper {
         Ok(db.cf_handle(&self.column_name).is_some())
     }
 
-    fn get_write_options() -> WriteOptions {
+    pub fn get_write_options() -> WriteOptions {
         let mut write_options = WriteOptions::default();
         write_options.set_sync(false);
         write_options.disable_wal(true);
         write_options
     }
 
-    fn get_column_family<'a>(
+    pub fn get_column_family<'a>(
         &self,
         db: &'a parking_lot::RwLockReadGuard<'_, DB>,
     ) -> OperationResult<&'a ColumnFamily> {
@@ -250,6 +250,17 @@ impl<'a> DatabaseColumnIterator<'a> {
             iter,
             just_seeked: true,
         })
+    }
+
+    // Allows initializing iterators separately from DatabaseColumnWrappers
+    pub fn with_cf(db: &'a DB, column_family: &'a mut ColumnFamily) -> DatabaseColumnIterator<'a> {
+        let mut iter = db.raw_iterator_cf(column_family);
+        iter.seek_to_first();
+        DatabaseColumnIterator {
+            handle: column_family,
+            iter,
+            just_seeked: true,
+        }
     }
 }
 

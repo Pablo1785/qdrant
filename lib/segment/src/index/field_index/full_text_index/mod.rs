@@ -4,6 +4,7 @@ mod posting_list;
 mod postings_iterator;
 pub mod text_index;
 mod tokenizers;
+pub use inverted_index::InvertedIndex;
 
 #[cfg(test)]
 mod tests;

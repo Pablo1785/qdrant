@@ -1,5 +1,6 @@
 use crate::common::utils::{IndexesMap, JsonPathPayload};
 use crate::index::field_index::CardinalityEstimation;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::query_estimator::{
     combine_must_estimations, combine_should_estimations, invert_estimation,
 };
@@ -13,7 +14,7 @@ use crate::types::{Condition, PointOffsetType};
 
 pub fn optimize_nested_must<'a, F>(
     conditions: &'a [Condition],
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,
@@ -38,7 +39,7 @@ where
 
 pub fn optimize_nested_must_not<'a, F>(
     conditions: &'a [Condition],
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,
@@ -66,7 +67,7 @@ where
 
 pub fn optimize_nested_should<'a, F>(
     conditions: &'a [Condition],
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     estimator: &F,
     total: usize,

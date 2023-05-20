@@ -18,6 +18,7 @@ use crate::common::operation_time_statistics::{
 use crate::data_types::vectors::VectorElementType;
 use crate::entry::entry_point::{check_process_stopped, OperationError, OperationResult};
 use crate::id_tracker::IdTrackerSS;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::hnsw_index::build_condition_checker::BuildConditionChecker;
 use crate::index::hnsw_index::config::HnswGraphConfig;
 use crate::index::hnsw_index::graph_layers::GraphLayers;
@@ -42,10 +43,10 @@ use crate::vector_storage::{new_raw_scorer, ScoredPointOffset, VectorStorage, Ve
 const HNSW_USE_HEURISTIC: bool = true;
 const BYTES_IN_KB: usize = 1024;
 
-pub struct HNSWIndex<TGraphLinks: GraphLinks> {
+pub struct HNSWIndex<TGraphLinks: GraphLinks, I: InvertedIndex> {
     id_tracker: Arc<AtomicRefCell<IdTrackerSS>>,
     vector_storage: Arc<AtomicRefCell<VectorStorageEnum>>,
-    payload_index: Arc<AtomicRefCell<StructPayloadIndex>>,
+    payload_index: Arc<AtomicRefCell<StructPayloadIndex<I>>>,
     config: HnswGraphConfig,
     path: PathBuf,
     graph: Option<GraphLayers<TGraphLinks>>,
@@ -61,12 +62,12 @@ struct SearchesTelemetry {
     exact_unfiltered: Arc<Mutex<OperationDurationsAggregator>>,
 }
 
-impl<TGraphLinks: GraphLinks> HNSWIndex<TGraphLinks> {
+impl<TGraphLinks: GraphLinks, I: InvertedIndex> HNSWIndex<TGraphLinks, I> {
     pub fn open(
         path: &Path,
         id_tracker: Arc<AtomicRefCell<IdTrackerSS>>,
         vector_storage: Arc<AtomicRefCell<VectorStorageEnum>>,
-        payload_index: Arc<AtomicRefCell<StructPayloadIndex>>,
+        payload_index: Arc<AtomicRefCell<StructPayloadIndex<I>>>,
         hnsw_config: HnswConfig,
     ) -> OperationResult<Self> {
         create_dir_all(path)?;
@@ -355,7 +356,7 @@ impl<TGraphLinks: GraphLinks> HNSWIndex<TGraphLinks> {
     }
 }
 
-impl<TGraphLinks: GraphLinks> VectorIndex for HNSWIndex<TGraphLinks> {
+impl<TGraphLinks: GraphLinks, I: InvertedIndex> VectorIndex for HNSWIndex<TGraphLinks, I> {
     fn search(
         &self,
         vectors: &[&[VectorElementType]],

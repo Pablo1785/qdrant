@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use crate::common::utils::IndexesMap;
 use crate::id_tracker::IdTrackerSS;
 use crate::index::field_index::FieldIndex;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::query_optimization::optimized_filter::ConditionCheckerFn;
 use crate::index::query_optimization::payload_provider::PayloadProvider;
 use crate::payload_storage::query_checker::{
@@ -15,7 +16,7 @@ use crate::types::{
 
 pub fn condition_converter<'a>(
     condition: &'a Condition,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     id_tracker: &IdTrackerSS,
 ) -> ConditionCheckerFn<'a> {
@@ -62,7 +63,7 @@ pub fn condition_converter<'a>(
 }
 
 pub fn field_condition_index<'a>(
-    index: &'a FieldIndex,
+    index: &'a FieldIndex<impl InvertedIndex>,
     field_condition: &FieldCondition,
 ) -> Option<ConditionCheckerFn<'a>> {
     if let Some(checker) = field_condition
@@ -101,7 +102,7 @@ pub fn field_condition_index<'a>(
 }
 
 pub fn get_geo_radius_checkers(
-    index: &FieldIndex,
+    index: &FieldIndex<impl InvertedIndex>,
     geo_radius: GeoRadius,
 ) -> Option<ConditionCheckerFn> {
     match index {
@@ -118,7 +119,7 @@ pub fn get_geo_radius_checkers(
 }
 
 pub fn get_geo_bounding_box_checkers(
-    index: &FieldIndex,
+    index: &FieldIndex<impl InvertedIndex>,
     geo_bounding_box: GeoBoundingBox,
 ) -> Option<ConditionCheckerFn> {
     match index {
@@ -134,7 +135,7 @@ pub fn get_geo_bounding_box_checkers(
     }
 }
 
-pub fn get_range_checkers(index: &FieldIndex, range: Range) -> Option<ConditionCheckerFn> {
+pub fn get_range_checkers(index: &FieldIndex<impl InvertedIndex>, range: Range) -> Option<ConditionCheckerFn> {
     match index {
         FieldIndex::IntIndex(num_index) => Some(Box::new(move |point_id: PointOffsetType| {
             match num_index.get_values(point_id) {
@@ -155,7 +156,7 @@ pub fn get_range_checkers(index: &FieldIndex, range: Range) -> Option<ConditionC
     }
 }
 
-pub fn get_match_checkers(index: &FieldIndex, cond_match: Match) -> Option<ConditionCheckerFn> {
+pub fn get_match_checkers(index: &FieldIndex<impl InvertedIndex>, cond_match: Match) -> Option<ConditionCheckerFn> {
     match cond_match {
         Match::Value(MatchValue {
             value: value_variant,

@@ -12,6 +12,7 @@ use crate::fixtures::payload_fixtures::{
     generate_diverse_payload, FLT_KEY, GEO_KEY, INT_KEY, STR_KEY, TEXT_KEY,
 };
 use crate::id_tracker::IdTracker;
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::plain_payload_index::PlainPayloadIndex;
 use crate::index::struct_payload_index::StructPayloadIndex;
 use crate::index::PayloadIndex;
@@ -218,7 +219,7 @@ pub fn create_struct_payload_index(
     path: &Path,
     num_points: usize,
     seed: u64,
-) -> StructPayloadIndex {
+) -> StructPayloadIndex<impl InvertedIndex> {
     let payload_storage = Arc::new(AtomicRefCell::new(
         create_payload_storage_fixture(num_points, seed).into(),
     ));

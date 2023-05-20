@@ -1,41 +1,42 @@
-use crate::data_types::text_index::{TextIndexParams, TokenizerType};
+use crate::{data_types::text_index::{TextIndexParams, TokenizerType}, entry::entry_point::OperationResult};
 
 struct WhiteSpaceTokenizer;
 
 impl WhiteSpaceTokenizer {
-    fn tokenize<C: FnMut(&str)>(text: &str, callback: C) {
-        text.split_whitespace().for_each(callback);
+    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(text: &str, callback: C) -> OperationResult<()> {
+        text.split_whitespace().map(callback).collect()
     }
 }
 
 struct WordTokenizer;
 
 impl WordTokenizer {
-    fn tokenize<C: FnMut(&str)>(text: &str, callback: C) {
+    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(text: &str, callback: C) -> OperationResult<()> {
         text.split(|c| !char::is_alphanumeric(c))
             .filter(|x| !x.is_empty())
-            .for_each(callback);
+            .map(callback).collect()
     }
 }
 
 struct PrefixTokenizer;
 
 impl PrefixTokenizer {
-    fn tokenize<C: FnMut(&str)>(text: &str, min_ngram: usize, max_ngram: usize, mut callback: C) {
+    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(text: &str, min_ngram: usize, max_ngram: usize, mut callback: C) -> OperationResult<()> {
         text.split(|c| !char::is_alphanumeric(c))
             .filter(|token| !token.is_empty())
-            .for_each(|word| {
+            .map(|word| {
                 for n in min_ngram..=max_ngram {
                     let ngram = word.char_indices().map(|(i, _)| i).nth(n);
                     match ngram {
-                        Some(end) => callback(&word[..end]),
+                        Some(end) => callback(&word[..end])?,
                         None => {
-                            callback(word);
+                            callback(word)?;
                             break;
                         }
                     }
                 }
-            });
+                Ok(())
+            }).collect()
     }
 
     /// For querying prefixes, it makes sense to use a maximal ngram only.
@@ -45,52 +46,53 @@ impl PrefixTokenizer {
     /// Query tokens: "hel"   -> ["hel"]
     /// Query tokens: "hell"  -> ["hell"]
     /// Query tokens: "hello" -> ["hello"]
-    fn tokenize_query<C: FnMut(&str)>(text: &str, max_ngram: usize, mut callback: C) {
+    fn tokenize_query<C: FnMut(&str) -> OperationResult<()>>(text: &str, max_ngram: usize, mut callback: C) -> OperationResult<()> {
         text.split(|c| !char::is_alphanumeric(c))
             .filter(|token| !token.is_empty())
-            .for_each(|word| {
+            .map(|word| {
                 let ngram = word.char_indices().map(|(i, _)| i).nth(max_ngram);
                 match ngram {
-                    Some(end) => callback(&word[..end]),
+                    Some(end) => callback(&word[..end])?,
                     None => {
-                        callback(word);
+                        callback(word)?;
                     }
                 }
-            });
+                Ok(())
+            }).collect()
     }
 }
 
 pub struct Tokenizer;
 
 impl Tokenizer {
-    fn doc_token_filter<'a, C: FnMut(&str) + 'a>(
+    fn doc_token_filter<'a, C: FnMut(&str) -> OperationResult<()> + 'a>(
         config: &'a TextIndexParams,
         mut callback: C,
-    ) -> impl FnMut(&str) + 'a {
+    ) -> impl FnMut(&str) -> OperationResult<()> + 'a {
         move |token: &str| {
             if config
                 .min_token_len
                 .map(|min_len| token.len() < min_len && token.chars().count() < min_len)
                 .unwrap_or(false)
             {
-                return;
+                return Ok(());
             }
             if config
                 .max_token_len
                 .map(|max_len| token.len() > max_len && token.chars().count() > max_len)
                 .unwrap_or(false)
             {
-                return;
+                return Ok(());
             }
             if config.lowercase.unwrap_or(true) {
-                callback(&token.to_lowercase());
+                callback(&token.to_lowercase())
             } else {
-                callback(token);
+                callback(token)
             }
         }
     }
 
-    pub fn tokenize_doc<C: FnMut(&str)>(text: &str, config: &TextIndexParams, mut callback: C) {
+    pub fn tokenize_doc<C: FnMut(&str) -> OperationResult<()>>(text: &str, config: &TextIndexParams, mut callback: C) -> OperationResult<()> {
         let token_filter = Self::doc_token_filter(config, &mut callback);
         match config.tokenizer {
             TokenizerType::Whitespace => WhiteSpaceTokenizer::tokenize(text, token_filter),
@@ -104,7 +106,7 @@ impl Tokenizer {
         }
     }
 
-    pub fn tokenize_query<C: FnMut(&str)>(text: &str, config: &TextIndexParams, mut callback: C) {
+    pub fn tokenize_query<C: FnMut(&str) -> OperationResult<()>>(text: &str, config: &TextIndexParams, mut callback: C) -> OperationResult<()> {
         let token_filter = Self::doc_token_filter(config, &mut callback);
         match config.tokenizer {
             TokenizerType::Whitespace => WhiteSpaceTokenizer::tokenize(text, token_filter),
@@ -127,7 +129,7 @@ mod tests {
     fn test_whitespace_tokenizer() {
         let text = "hello world";
         let mut tokens = Vec::new();
-        WhiteSpaceTokenizer::tokenize(text, |token| tokens.push(token.to_owned()));
+        WhiteSpaceTokenizer::tokenize(text, |token| Ok(tokens.push(token.to_owned())));
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens.get(0), Some(&"hello".to_owned()));
         assert_eq!(tokens.get(1), Some(&"world".to_owned()));
@@ -137,7 +139,7 @@ mod tests {
     fn test_word_tokenizer() {
         let text = "hello, world! Привет, мир!";
         let mut tokens = Vec::new();
-        WordTokenizer::tokenize(text, |token| tokens.push(token.to_owned()));
+        WordTokenizer::tokenize(text, |token| Ok(tokens.push(token.to_owned())));
         assert_eq!(tokens.len(), 4);
         assert_eq!(tokens.get(0), Some(&"hello".to_owned()));
         assert_eq!(tokens.get(1), Some(&"world".to_owned()));
@@ -149,7 +151,7 @@ mod tests {
     fn test_prefix_tokenizer() {
         let text = "hello, мир!";
         let mut tokens = Vec::new();
-        PrefixTokenizer::tokenize(text, 1, 4, |token| tokens.push(token.to_owned()));
+        PrefixTokenizer::tokenize(text, 1, 4, |token| Ok(tokens.push(token.to_owned())));
         eprintln!("tokens = {tokens:#?}");
         assert_eq!(tokens.len(), 7);
         assert_eq!(tokens.get(0), Some(&"h".to_owned()));
@@ -165,7 +167,7 @@ mod tests {
     fn test_prefix_query_tokenizer() {
         let text = "hello, мир!";
         let mut tokens = Vec::new();
-        PrefixTokenizer::tokenize_query(text, 4, |token| tokens.push(token.to_owned()));
+        PrefixTokenizer::tokenize_query(text, 4, |token| Ok(tokens.push(token.to_owned())));
         eprintln!("tokens = {tokens:#?}");
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens.get(0), Some(&"hell".to_owned()));
@@ -185,7 +187,7 @@ mod tests {
                 max_token_len: Some(4),
                 lowercase: Some(true),
             },
-            |token| tokens.push(token.to_owned()),
+            |token| Ok(tokens.push(token.to_owned())),
         );
         eprintln!("tokens = {tokens:#?}");
         assert_eq!(tokens.len(), 7);

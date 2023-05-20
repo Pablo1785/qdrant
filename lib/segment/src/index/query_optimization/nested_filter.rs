@@ -1,6 +1,7 @@
 use bitvec::prelude::*;
 
 use crate::common::utils::{IndexesMap, JsonPathPayload};
+use crate::index::field_index::full_text_index::InvertedIndex;
 use crate::index::query_optimization::payload_provider::PayloadProvider;
 use crate::payload_storage::nested_query_checker::{
     check_nested_is_empty_condition, check_nested_is_null_condition, nested_check_field_condition,
@@ -48,7 +49,7 @@ pub fn find_indices_matching_any_conditions(
 pub fn nested_conditions_converter<'a>(
     conditions: &'a [Condition],
     payload_provider: PayloadProvider,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     nested_path: JsonPathPayload,
 ) -> Vec<NestedMatchingIndicesFn<'a>> {
     conditions
@@ -67,7 +68,7 @@ pub fn nested_conditions_converter<'a>(
 pub fn nested_condition_converter<'a>(
     condition: &'a Condition,
     payload_provider: PayloadProvider,
-    field_indexes: &'a IndexesMap,
+    field_indexes: &'a IndexesMap<impl InvertedIndex>,
     nested_path: JsonPathPayload,
 ) -> NestedMatchingIndicesFn<'a> {
     match condition {
@@ -157,7 +158,7 @@ pub fn nested_condition_converter<'a>(
 fn check_nested_must(
     point_id: PointOffsetType,
     nested: &NestedContainer,
-    field_indexes: &IndexesMap,
+    field_indexes: &IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     nested_path: JsonPathPayload,
 ) -> Option<BitVec> {
@@ -180,7 +181,7 @@ fn check_nested_must(
 fn check_nested_must_not(
     point_id: PointOffsetType,
     nested: &NestedContainer,
-    field_indexes: &IndexesMap,
+    field_indexes: &IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     nested_path: &JsonPathPayload,
 ) -> Option<BitVec> {
@@ -203,7 +204,7 @@ fn check_nested_must_not(
 fn check_nested_should(
     point_id: PointOffsetType,
     nested: &NestedContainer,
-    field_indexes: &IndexesMap,
+    field_indexes: &IndexesMap<impl InvertedIndex>,
     payload_provider: PayloadProvider,
     nested_path: JsonPathPayload,
 ) -> Option<BitVec> {

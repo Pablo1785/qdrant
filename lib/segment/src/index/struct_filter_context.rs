@@ -7,6 +7,8 @@ use crate::index::query_optimization::payload_provider::PayloadProvider;
 use crate::payload_storage::FilterContext;
 use crate::types::{Condition, Filter, PointOffsetType};
 
+use super::field_index::full_text_index::InvertedIndex;
+
 pub struct StructFilterContext<'a> {
     optimized_filter: OptimizedFilter<'a>,
 }
@@ -16,7 +18,7 @@ impl<'a> StructFilterContext<'a> {
         filter: &'a Filter,
         id_tracker: &IdTrackerSS,
         payload_provider: PayloadProvider,
-        field_indexes: &'a IndexesMap,
+        field_indexes: &'a IndexesMap<impl InvertedIndex>,
         estimator: &F,
         total: usize,
     ) -> Self

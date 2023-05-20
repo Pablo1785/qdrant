@@ -20,13 +20,25 @@ use crate::index::field_index::{
 use crate::telemetry::PayloadIndexTelemetry;
 use crate::types::{FieldCondition, Match, PayloadKeyType, PointOffsetType};
 
-pub struct FullTextIndex {
-    inverted_index: InvertedIndexInMemory,
+pub struct FullTextIndex<I: InvertedIndex> {
+    inverted_index: I,
     db_wrapper: DatabaseColumnWrapper,
     config: TextIndexParams,
 }
 
-impl FullTextIndex {
+impl FullTextIndex<InvertedIndexInMemory> {
+    pub fn new(db: Arc<RwLock<DB>>, config: TextIndexParams, field: &str) -> Self {
+        let store_cf_name = Self::storage_cf_name(field);
+        let db_wrapper = DatabaseColumnWrapper::new(db, &store_cf_name);
+        FullTextIndex {
+            inverted_index: InvertedIndexInMemory::new(),
+            db_wrapper,
+            config,
+        }
+    }
+}
+
+impl<I: InvertedIndex> FullTextIndex<I> {
     fn store_key(id: &PointOffsetType) -> Vec<u8> {
         bincode::serialize(&id).unwrap()
     }
@@ -48,7 +60,7 @@ impl FullTextIndex {
 
     fn deserialize_document(
         data: &[u8],
-        index: &mut InvertedIndexInMemory,
+        index: &mut I,
     ) -> OperationResult<Document> {
         #[derive(Deserialize)]
         struct StoredDocument {
@@ -64,17 +76,7 @@ impl FullTextIndex {
         format!("{field}_fts")
     }
 
-    pub fn new(db: Arc<RwLock<DB>>, config: TextIndexParams, field: &str) -> Self {
-        let store_cf_name = Self::storage_cf_name(field);
-        let db_wrapper = DatabaseColumnWrapper::new(db, &store_cf_name);
-        FullTextIndex {
-            inverted_index: InvertedIndexInMemory::new(),
-            db_wrapper,
-            config,
-        }
-    }
-
-    pub fn get_doc(&self, idx: PointOffsetType) -> Option<&Document> {
+    pub fn get_doc(&self, idx: PointOffsetType) -> OperationResult<Option<<I as InvertedIndex>::Document<'_>>> {
         self.inverted_index.get_doc(idx)
     }
 
@@ -94,21 +96,23 @@ impl FullTextIndex {
     pub fn parse_query(&self, text: &str) -> ParsedQuery {
         let mut tokens = HashSet::new();
         Tokenizer::tokenize_query(text, &self.config, |token| {
-            tokens.insert(self.inverted_index.get_token_id(token).unwrap());
+            tokens.insert(self.inverted_index.get_token_id(token)?);
+            Ok(())
         });
         ParsedQuery {
             tokens: tokens.into_iter().collect(),
         }
     }
 
-    pub fn parse_document(&self, text: &str) -> Document {
+    pub fn parse_document(&self, text: &str) -> OperationResult<Document> {
         let mut document_tokens = vec![];
         Tokenizer::tokenize_doc(text, &self.config, |token| {
-            if let Some(token_id) = self.inverted_index.vocab.get(token) {
-                document_tokens.push(*token_id);
+            if let Some(token_id) = self.inverted_index.get_token_id(token)? {
+                document_tokens.push(token_id);
             }
+            Ok(())
         });
-        Document::new(document_tokens)
+        Ok(Document::new(document_tokens))
     }
 
     #[cfg(test)]
@@ -121,7 +125,7 @@ impl FullTextIndex {
     }
 }
 
-impl ValueIndexer<String> for FullTextIndex {
+impl<I: InvertedIndex> ValueIndexer<String> for FullTextIndex<I> {
     fn add_many(&mut self, idx: PointOffsetType, values: Vec<String>) -> OperationResult<()> {
         if values.is_empty() {
             return Ok(());
@@ -132,6 +136,7 @@ impl ValueIndexer<String> for FullTextIndex {
         for value in values {
             Tokenizer::tokenize_doc(&value, &self.config, |token| {
                 tokens.insert(token.to_owned());
+                Ok(())
             });
         }
 
@@ -167,7 +172,7 @@ impl ValueIndexer<String> for FullTextIndex {
     }
 }
 
-impl PayloadFieldIndex for FullTextIndex {
+impl<I: InvertedIndex> PayloadFieldIndex for FullTextIndex<I> {
     fn indexed_points(&self) -> usize {
         self.inverted_index.get_points_count()
     }

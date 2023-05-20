@@ -12,12 +12,14 @@ use crate::types::{
     FloatPayloadType, IntPayloadType, PayloadFieldSchema, PayloadSchemaParams, PayloadSchemaType,
 };
 
+use super::full_text_index::InvertedIndex;
+
 /// Selects index types based on field type
-pub fn index_selector(
+pub fn index_selector<I: InvertedIndex>(
     field: &str,
     payload_schema: &PayloadFieldSchema,
     db: Arc<RwLock<DB>>,
-) -> Vec<FieldIndex> {
+) -> Vec<FieldIndex<I>> {
     match payload_schema {
         PayloadFieldSchema::FieldType(payload_type) => match payload_type {
             PayloadSchemaType::Keyword => {
