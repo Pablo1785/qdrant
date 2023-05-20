@@ -1,9 +1,15 @@
-use crate::{data_types::text_index::{TextIndexParams, TokenizerType}, entry::entry_point::OperationResult};
+use crate::{
+    data_types::text_index::{TextIndexParams, TokenizerType},
+    entry::entry_point::OperationResult,
+};
 
 struct WhiteSpaceTokenizer;
 
 impl WhiteSpaceTokenizer {
-    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(text: &str, callback: C) -> OperationResult<()> {
+    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(
+        text: &str,
+        callback: C,
+    ) -> OperationResult<()> {
         text.split_whitespace().map(callback).collect()
     }
 }
@@ -11,17 +17,26 @@ impl WhiteSpaceTokenizer {
 struct WordTokenizer;
 
 impl WordTokenizer {
-    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(text: &str, callback: C) -> OperationResult<()> {
+    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(
+        text: &str,
+        callback: C,
+    ) -> OperationResult<()> {
         text.split(|c| !char::is_alphanumeric(c))
             .filter(|x| !x.is_empty())
-            .map(callback).collect()
+            .map(callback)
+            .collect()
     }
 }
 
 struct PrefixTokenizer;
 
 impl PrefixTokenizer {
-    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(text: &str, min_ngram: usize, max_ngram: usize, mut callback: C) -> OperationResult<()> {
+    fn tokenize<C: FnMut(&str) -> OperationResult<()>>(
+        text: &str,
+        min_ngram: usize,
+        max_ngram: usize,
+        mut callback: C,
+    ) -> OperationResult<()> {
         text.split(|c| !char::is_alphanumeric(c))
             .filter(|token| !token.is_empty())
             .map(|word| {
@@ -36,7 +51,8 @@ impl PrefixTokenizer {
                     }
                 }
                 Ok(())
-            }).collect()
+            })
+            .collect()
     }
 
     /// For querying prefixes, it makes sense to use a maximal ngram only.
@@ -46,7 +62,11 @@ impl PrefixTokenizer {
     /// Query tokens: "hel"   -> ["hel"]
     /// Query tokens: "hell"  -> ["hell"]
     /// Query tokens: "hello" -> ["hello"]
-    fn tokenize_query<C: FnMut(&str) -> OperationResult<()>>(text: &str, max_ngram: usize, mut callback: C) -> OperationResult<()> {
+    fn tokenize_query<C: FnMut(&str) -> OperationResult<()>>(
+        text: &str,
+        max_ngram: usize,
+        mut callback: C,
+    ) -> OperationResult<()> {
         text.split(|c| !char::is_alphanumeric(c))
             .filter(|token| !token.is_empty())
             .map(|word| {
@@ -58,7 +78,8 @@ impl PrefixTokenizer {
                     }
                 }
                 Ok(())
-            }).collect()
+            })
+            .collect()
     }
 }
 
@@ -92,7 +113,11 @@ impl Tokenizer {
         }
     }
 
-    pub fn tokenize_doc<C: FnMut(&str) -> OperationResult<()>>(text: &str, config: &TextIndexParams, mut callback: C) -> OperationResult<()> {
+    pub fn tokenize_doc<C: FnMut(&str) -> OperationResult<()>>(
+        text: &str,
+        config: &TextIndexParams,
+        mut callback: C,
+    ) -> OperationResult<()> {
         let token_filter = Self::doc_token_filter(config, &mut callback);
         match config.tokenizer {
             TokenizerType::Whitespace => WhiteSpaceTokenizer::tokenize(text, token_filter),
@@ -106,7 +131,11 @@ impl Tokenizer {
         }
     }
 
-    pub fn tokenize_query<C: FnMut(&str) -> OperationResult<()>>(text: &str, config: &TextIndexParams, mut callback: C) -> OperationResult<()> {
+    pub fn tokenize_query<C: FnMut(&str) -> OperationResult<()>>(
+        text: &str,
+        config: &TextIndexParams,
+        mut callback: C,
+    ) -> OperationResult<()> {
         let token_filter = Self::doc_token_filter(config, &mut callback);
         match config.tokenizer {
             TokenizerType::Whitespace => WhiteSpaceTokenizer::tokenize(text, token_filter),

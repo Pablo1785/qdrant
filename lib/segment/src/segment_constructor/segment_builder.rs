@@ -54,7 +54,11 @@ impl<I: InvertedIndex> SegmentBuilder<I> {
     ///
     /// * `bool` - if `true` - data successfully added, if `false` - process was interrupted
     ///
-    pub fn update_from(&mut self, other: &Segment<I>, stopped: &AtomicBool) -> OperationResult<bool> {
+    pub fn update_from(
+        &mut self,
+        other: &Segment<I>,
+        stopped: &AtomicBool,
+    ) -> OperationResult<bool> {
         let self_segment = match &mut self.segment {
             Some(segment) => segment,
             None => {

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::posting_list::PostingList;
 use super::postings_iterator::intersect_postings_iterator;
-use crate::entry::entry_point::{OperationResult, OperationError};
+use crate::entry::entry_point::{OperationError, OperationResult};
 use crate::index::field_index::{CardinalityEstimation, PayloadBlockCondition, PrimaryCondition};
 use crate::types::{FieldCondition, Match, MatchText, PayloadKeyType, PointOffsetType};
 
@@ -249,10 +249,7 @@ impl InvertedIndex for InvertedIndexInMemory {
         Ok(Some(()))
     }
 
-    fn filter(
-        &self,
-        query: &ParsedQuery,
-    ) -> OperationResult<Box<dyn Iterator<Item = u32>>> {
+    fn filter(&self, query: &ParsedQuery) -> OperationResult<Box<dyn Iterator<Item = u32>>> {
         let postings_opt: Option<Vec<_>> = query
             .tokens
             .iter()

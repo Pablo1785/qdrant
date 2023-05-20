@@ -2,12 +2,14 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
-use rocksdb::{DB, ColumnFamily, ColumnFamilyRef, WriteOptions};
+use rocksdb::{ColumnFamily, ColumnFamilyRef, WriteOptions, DB};
 
 use super::inverted_index::{Document, InvertedIndex, ParsedQuery, TokenId};
 use super::posting_list::PostingList;
 use super::postings_iterator::intersect_postings_iterator_owned;
-use crate::common::rocksdb_wrapper::{DatabaseColumnWrapper, LockedDatabaseColumnWrapper, DatabaseColumnIterator};
+use crate::common::rocksdb_wrapper::{
+    DatabaseColumnIterator, DatabaseColumnWrapper, LockedDatabaseColumnWrapper,
+};
 use crate::common::Flusher;
 use crate::entry::entry_point::{OperationError, OperationResult};
 use crate::index::field_index::PayloadBlockCondition;
@@ -36,7 +38,6 @@ pub fn db_decode_tokens(data: &[u8]) -> Vec<u32> {
     res
 }
 
-
 pub struct InvertedIndexOnDiskManager {
     db: Arc<RwLock<DB>>,
     field: String,
@@ -45,7 +46,6 @@ pub struct InvertedIndexOnDiskManager {
     pub point_to_docs: DatabaseColumnWrapper,
     pub points_count: usize,
 }
-
 
 impl InvertedIndexOnDiskManager {
     pub fn new(db: Arc<RwLock<DB>>, field: &str) -> Self {
@@ -74,11 +74,16 @@ impl InvertedIndexOnDiskManager {
         let postings = self.postings.get_column_family(db)?;
         let vocab = self.vocab.get_column_family(db)?;
         let point_to_docs = self.point_to_docs.get_column_family(db)?;
-        Ok(
-            InvertedIndexOnDisk::new(db, postings, vocab, point_to_docs, self.points_count, DatabaseColumnWrapper::get_write_options())
-        )
+        Ok(InvertedIndexOnDisk::new(
+            db,
+            postings,
+            vocab,
+            point_to_docs,
+            self.points_count,
+            DatabaseColumnWrapper::get_write_options(),
+        ))
     }
-    
+
     fn flusher(&self) -> Flusher {
         let postings_flusher = self.postings.flusher();
         let vocab_flusher = self.vocab.flusher();
@@ -90,7 +95,6 @@ impl InvertedIndexOnDiskManager {
         })
     }
 }
-
 
 pub struct InvertedIndexOnDisk<'a> {
     db: &'a DB,
@@ -116,7 +120,7 @@ impl<'a> InvertedIndexOnDisk<'a> {
             vocab,
             point_to_docs,
             points_count,
-            write_options
+            write_options,
         }
     }
 
@@ -127,7 +131,7 @@ impl<'a> InvertedIndexOnDisk<'a> {
     fn restore_key(data: &[u8]) -> PointOffsetType {
         bincode::deserialize(data).unwrap()
     }
-    
+
     // pub fn estimate_cardinality(
     //     &self,
     //     query: &ParsedQuery,
@@ -229,26 +233,37 @@ impl<'a> InvertedIndexOnDisk<'a> {
 
 impl InvertedIndex for InvertedIndexOnDisk<'_> {
     type Document<'a> = Document where Self: 'a;
-    fn document_from_tokens(
-        &mut self,
-        tokens: &BTreeSet<String>,
-    ) -> OperationResult<Document> {
+    fn document_from_tokens(&mut self, tokens: &BTreeSet<String>) -> OperationResult<Document> {
         let mut document_tokens = vec![];
         for token in tokens {
             // check if in vocab
-            let vocab_idx = match self.db.get_pinned_cf(self.vocab, token.as_bytes())
-            .map_err(|err| {
-                OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
-            })?.map(|data| db_decode_tokens(&data)) {
+            let vocab_idx = match self
+                .db
+                .get_pinned_cf(self.vocab, token.as_bytes())
+                .map_err(|err| {
+                    OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
+                })?
+                .map(|data| db_decode_tokens(&data))
+            {
                 Some(cbor_result) => cbor_result
                     .first()
                     .ok_or(OperationError::service_error("No tokens to decode"))?
                     .clone(),
                 None => {
-                    let next_token_id = DatabaseColumnIterator::with_cf(self.db, &mut self.vocab).count() as TokenId;
-                    self.db.put_cf_opt(self.vocab, token.as_bytes(), db_encode_tokens(&[next_token_id]), &self.write_options).map_err(|err| {
-                OperationError::service_error(format!("RocksDB put_cf_opt error: {err}"))
-            })?;
+                    let next_token_id = DatabaseColumnIterator::with_cf(self.db, &mut self.vocab)
+                        .count() as TokenId;
+                    self.db
+                        .put_cf_opt(
+                            self.vocab,
+                            token.as_bytes(),
+                            db_encode_tokens(&[next_token_id]),
+                            &self.write_options,
+                        )
+                        .map_err(|err| {
+                            OperationError::service_error(format!(
+                                "RocksDB put_cf_opt error: {err}"
+                            ))
+                        })?;
                     next_token_id
                 }
             };
@@ -262,51 +277,88 @@ impl InvertedIndex for InvertedIndexOnDisk<'_> {
         self.points_count += 1;
 
         for token_idx in document.tokens() {
-            let mut posting = self.db.get_pinned_cf(self.postings, Self::store_key(token_idx)).map_err(|err| {
-                OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
-            })?.map(|data| db_decode_tokens(&data))
+            let mut posting = self
+                .db
+                .get_pinned_cf(self.postings, Self::store_key(token_idx))
+                .map_err(|err| {
+                    OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
+                })?
+                .map(|data| db_decode_tokens(&data))
                 .expect("posting must exist even if it's empty");
             posting.push(idx);
-                    self.db.put_cf_opt(self.postings, Self::store_key(token_idx), db_encode_tokens(&posting), &self.write_options).map_err(|err| {
-                OperationError::service_error(format!("RocksDB put_cf_opt error: {err}"))
-            })?;
+            self.db
+                .put_cf_opt(
+                    self.postings,
+                    Self::store_key(token_idx),
+                    db_encode_tokens(&posting),
+                    &self.write_options,
+                )
+                .map_err(|err| {
+                    OperationError::service_error(format!("RocksDB put_cf_opt error: {err}"))
+                })?;
         }
         let db_document = db_encode_tokens(document.tokens());
-                    self.db.put_cf_opt(self.point_to_docs, Self::store_key(&idx), db_document, &self.write_options).map_err(|err| {
+        self.db
+            .put_cf_opt(
+                self.point_to_docs,
+                Self::store_key(&idx),
+                db_document,
+                &self.write_options,
+            )
+            .map_err(|err| {
                 OperationError::service_error(format!("RocksDB put_cf_opt error: {err}"))
             })?;
         Ok(())
     }
 
     fn remove_document(&mut self, idx: PointOffsetType) -> OperationResult<Option<()>> {
-        if DatabaseColumnIterator::with_cf(self.db, &mut self.point_to_docs).count() <= idx as usize {
+        if DatabaseColumnIterator::with_cf(self.db, &mut self.point_to_docs).count() <= idx as usize
+        {
             return Ok(None); // Already removed or never actually existed
         }
         let db_idx = Self::store_key(&idx);
-        let tokens = self.db.get_pinned_cf(self.point_to_docs, &db_idx)
+        let tokens = self
+            .db
+            .get_pinned_cf(self.point_to_docs, &db_idx)
             .map_err(|err| {
                 OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
-            })?.map(|data| db_decode_tokens(&data));
+            })?
+            .map(|data| db_decode_tokens(&data));
 
-            self.db.put_cf_opt(self.point_to_docs, &db_idx, vec![], &self.write_options).map_err(|err| {
+        self.db
+            .put_cf_opt(self.point_to_docs, &db_idx, vec![], &self.write_options)
+            .map_err(|err| {
                 OperationError::service_error(format!("RocksDB put_cf_opt error: {err}"))
             })?;
 
         self.points_count -= 1;
-        
+
         if let Some(tokens) = tokens {
             for removed_token in tokens {
                 // unwrap safety: posting list exists and contains the document id
                 let db_key = Self::store_key(&removed_token);
-                let posting = self.db.get_pinned_cf(self.postings, db_key).map_err(|err| {
-                OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
-            })?.map(|data| db_decode_tokens(&data));
+                let posting = self
+                    .db
+                    .get_pinned_cf(self.postings, db_key)
+                    .map_err(|err| {
+                        OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
+                    })?
+                    .map(|data| db_decode_tokens(&data));
                 if let Some(mut vec) = posting {
                     if let Ok(removal_idx) = vec.binary_search(&idx) {
                         vec.remove(removal_idx);
-                    self.db.put_cf_opt(self.postings, &db_key, db_encode_tokens(&vec), &self.write_options).map_err(|err| {
-                OperationError::service_error(format!("RocksDB put_cf_opt error: {err}"))
-            })?;
+                        self.db
+                            .put_cf_opt(
+                                self.postings,
+                                &db_key,
+                                db_encode_tokens(&vec),
+                                &self.write_options,
+                            )
+                            .map_err(|err| {
+                                OperationError::service_error(format!(
+                                    "RocksDB put_cf_opt error: {err}"
+                                ))
+                            })?;
                     }
                 }
             }
@@ -321,9 +373,13 @@ impl InvertedIndex for InvertedIndexOnDisk<'_> {
         let mut postings = vec![];
         for &vocab_idx in query.tokens.iter() {
             if let Some(idx) = vocab_idx {
-                let res = self.db.get_pinned_cf(self.postings, Self::store_key(&idx)).map_err(|err| {
-                OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
-            })?.map(|data| db_decode_tokens(&data));
+                let res = self
+                    .db
+                    .get_pinned_cf(self.postings, Self::store_key(&idx))
+                    .map_err(|err| {
+                        OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
+                    })?
+                    .map(|data| db_decode_tokens(&data));
                 if let Some(tokens) = res {
                     postings.push(PostingList::from(tokens));
                 } else {
@@ -347,22 +403,28 @@ impl InvertedIndex for InvertedIndexOnDisk<'_> {
 
     fn get_doc<'a>(&'a self, idx: PointOffsetType) -> OperationResult<Option<Self::Document<'a>>> {
         let db_idx = Self::store_key(&idx);
-        let maybe_doc = self.db.get_pinned_cf(self.point_to_docs, &db_idx)
+        let maybe_doc = self
+            .db
+            .get_pinned_cf(self.point_to_docs, &db_idx)
             .map_err(|err| {
                 OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
-            })?.map(|data| Document::new(db_decode_tokens(&data)));
+            })?
+            .map(|data| Document::new(db_decode_tokens(&data)));
         Ok(if let Some(doc) = maybe_doc {
-                    Some(doc)
-                } else {
-                    None
-                })
+            Some(doc)
+        } else {
+            None
+        })
     }
 
     fn get_token_id(&self, token: &str) -> OperationResult<Option<u32>> {
-        let maybe_tokens = self.db.get_pinned_cf(self.vocab, token.as_bytes())
+        let maybe_tokens = self
+            .db
+            .get_pinned_cf(self.vocab, token.as_bytes())
             .map_err(|err| {
                 OperationError::service_error(format!("RocksDB get_pinned_cf error: {err}"))
-            })?.map(|data| db_decode_tokens(&data));
+            })?
+            .map(|data| db_decode_tokens(&data));
         let maybe_token_id = if let Some(tokens) = maybe_tokens {
             tokens.first().copied()
         } else {
@@ -394,7 +456,11 @@ mod tests {
         let mut tokens = HashSet::new();
         Tokenizer::tokenize_query(text, &config, |token| {
             tokens.insert(
-                index.db.get_pinned_cf(index.vocab, token.as_bytes()).unwrap().map(|data| db_decode_tokens(&data).first().unwrap().clone()),
+                index
+                    .db
+                    .get_pinned_cf(index.vocab, token.as_bytes())
+                    .unwrap()
+                    .map(|data| db_decode_tokens(&data).first().unwrap().clone()),
             );
             Ok(())
         });
@@ -437,7 +503,6 @@ mod tests {
             let index_manager = InvertedIndexOnDiskManager::new(db, "text");
             index_manager.recreate().unwrap();
             let mut index = index_manager.connect().unwrap();
-
 
             for (idx, payload) in payloads.iter().enumerate() {
                 let mut tokens: BTreeSet<String> = BTreeSet::new();

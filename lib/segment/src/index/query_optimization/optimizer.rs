@@ -4,8 +4,8 @@ use itertools::Itertools;
 
 use crate::common::utils::{IndexesMap, JsonPathPayload};
 use crate::id_tracker::IdTrackerSS;
-use crate::index::field_index::CardinalityEstimation;
 use crate::index::field_index::full_text_index::InvertedIndex;
+use crate::index::field_index::CardinalityEstimation;
 use crate::index::query_estimator::{
     combine_must_estimations, combine_should_estimations, invert_estimation,
 };

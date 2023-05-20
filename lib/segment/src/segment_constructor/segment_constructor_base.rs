@@ -242,7 +242,10 @@ pub fn load_segment(path: &Path) -> OperationResult<Option<Segment<impl Inverted
 /// * `config` - Segment configuration
 ///
 ///
-pub fn build_segment(path: &Path, config: &SegmentConfig) -> OperationResult<Segment<impl InvertedIndex>> {
+pub fn build_segment(
+    path: &Path,
+    config: &SegmentConfig,
+) -> OperationResult<Segment<impl InvertedIndex>> {
     let segment_path = path.join(Uuid::new_v4().to_string());
 
     std::fs::create_dir_all(&segment_path)?;

@@ -58,10 +58,7 @@ impl<I: InvertedIndex> FullTextIndex<I> {
         })
     }
 
-    fn deserialize_document(
-        data: &[u8],
-        index: &mut I,
-    ) -> OperationResult<Document> {
+    fn deserialize_document(data: &[u8], index: &mut I) -> OperationResult<Document> {
         #[derive(Deserialize)]
         struct StoredDocument {
             tokens: BTreeSet<String>,
@@ -76,7 +73,10 @@ impl<I: InvertedIndex> FullTextIndex<I> {
         format!("{field}_fts")
     }
 
-    pub fn get_doc(&self, idx: PointOffsetType) -> OperationResult<Option<<I as InvertedIndex>::Document<'_>>> {
+    pub fn get_doc(
+        &self,
+        idx: PointOffsetType,
+    ) -> OperationResult<Option<<I as InvertedIndex>::Document<'_>>> {
         self.inverted_index.get_doc(idx)
     }
 

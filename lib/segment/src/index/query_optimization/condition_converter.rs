@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use crate::common::utils::IndexesMap;
 use crate::id_tracker::IdTrackerSS;
-use crate::index::field_index::FieldIndex;
 use crate::index::field_index::full_text_index::InvertedIndex;
+use crate::index::field_index::FieldIndex;
 use crate::index::query_optimization::optimized_filter::ConditionCheckerFn;
 use crate::index::query_optimization::payload_provider::PayloadProvider;
 use crate::payload_storage::query_checker::{
@@ -135,7 +135,10 @@ pub fn get_geo_bounding_box_checkers(
     }
 }
 
-pub fn get_range_checkers(index: &FieldIndex<impl InvertedIndex>, range: Range) -> Option<ConditionCheckerFn> {
+pub fn get_range_checkers(
+    index: &FieldIndex<impl InvertedIndex>,
+    range: Range,
+) -> Option<ConditionCheckerFn> {
     match index {
         FieldIndex::IntIndex(num_index) => Some(Box::new(move |point_id: PointOffsetType| {
             match num_index.get_values(point_id) {
@@ -156,7 +159,10 @@ pub fn get_range_checkers(index: &FieldIndex<impl InvertedIndex>, range: Range) 
     }
 }
 
-pub fn get_match_checkers(index: &FieldIndex<impl InvertedIndex>, cond_match: Match) -> Option<ConditionCheckerFn> {
+pub fn get_match_checkers(
+    index: &FieldIndex<impl InvertedIndex>,
+    cond_match: Match,
+) -> Option<ConditionCheckerFn> {
     match cond_match {
         Match::Value(MatchValue {
             value: value_variant,
