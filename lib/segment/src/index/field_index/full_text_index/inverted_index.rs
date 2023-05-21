@@ -4,6 +4,7 @@ use std::convert::Infallible;
 
 use serde::{Deserialize, Serialize};
 
+use super::InvertedIndexOnDisk;
 use super::posting_list::PostingList;
 use super::postings_iterator::intersect_postings_iterator;
 use crate::entry::entry_point::{OperationError, OperationResult};
@@ -68,6 +69,11 @@ pub trait InvertedIndex {
     fn get_points_count(&self) -> usize;
     fn get_doc(&self, idx: PointOffsetType) -> OperationResult<Option<Self::Document<'_>>>;
     fn get_token_id(&self, token: &str) -> OperationResult<Option<u32>>;
+}
+
+pub enum InvertedIndexType {
+    InMemory,
+    OnDisk,
 }
 
 #[derive(Default)]

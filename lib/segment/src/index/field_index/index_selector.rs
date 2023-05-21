@@ -3,6 +3,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use rocksdb::DB;
 
+use crate::entry::entry_point::OperationResult;
 use crate::index::field_index::full_text_index::text_index::FullTextIndex;
 use crate::index::field_index::geo_index::GeoMapIndex;
 use crate::index::field_index::map_index::MapIndex;
@@ -12,39 +13,45 @@ use crate::types::{
     FloatPayloadType, IntPayloadType, PayloadFieldSchema, PayloadSchemaParams, PayloadSchemaType,
 };
 
-use super::full_text_index::InvertedIndex;
+use super::full_text_index::{InvertedIndex, InvertedIndexInMemory, InvertedIndexOnDisk, InvertedIndexType};
 
 /// Selects index types based on field type
-pub fn index_selector<I: InvertedIndex>(
+pub fn index_selector(
     field: &str,
     payload_schema: &PayloadFieldSchema,
     db: Arc<RwLock<DB>>,
-) -> Vec<FieldIndex<I>> {
-    match payload_schema {
-        PayloadFieldSchema::FieldType(payload_type) => match payload_type {
-            PayloadSchemaType::Keyword => {
-                vec![FieldIndex::KeywordIndex(MapIndex::new(db, field))]
-            }
-            PayloadSchemaType::Integer => vec![
-                FieldIndex::IntMapIndex(MapIndex::<IntPayloadType>::new(db.clone(), field)),
-                FieldIndex::IntIndex(NumericIndex::<IntPayloadType>::new(db, field)),
-            ],
-            PayloadSchemaType::Float => {
-                vec![FieldIndex::FloatIndex(
-                    NumericIndex::<FloatPayloadType>::new(db, field),
-                )]
-            }
-            PayloadSchemaType::Geo => vec![FieldIndex::GeoIndex(GeoMapIndex::new(db, field))],
-            PayloadSchemaType::Text => vec![FieldIndex::FullTextIndex(FullTextIndex::new(
-                db,
-                Default::default(),
-                field,
-            ))],
-        },
-        PayloadFieldSchema::FieldParams(payload_params) => match payload_params {
-            PayloadSchemaParams::Text(text_index_params) => vec![FieldIndex::FullTextIndex(
-                FullTextIndex::new(db, text_index_params.clone(), field),
+    inverted_index_type: InvertedIndexType,
+) -> OperationResult<Vec<FieldIndex<impl InvertedIndex>>> {
+    Ok(match payload_schema {
+            PayloadFieldSchema::FieldType(payload_type) => match payload_type {
+                PayloadSchemaType::Keyword => {
+                    vec![FieldIndex::KeywordIndex(MapIndex::new(db, field))]
+                }
+                PayloadSchemaType::Integer => vec![
+                    FieldIndex::IntMapIndex(MapIndex::<IntPayloadType>::new(db.clone(), field)),
+                    FieldIndex::IntIndex(NumericIndex::<IntPayloadType>::new(db, field)),
+                ],
+                PayloadSchemaType::Float => {
+                    vec![FieldIndex::FloatIndex(
+                        NumericIndex::<FloatPayloadType>::new(db, field),
+                    )]
+                }
+                PayloadSchemaType::Geo => vec![FieldIndex::GeoIndex(GeoMapIndex::new(db, field))],
+                PayloadSchemaType::Text => vec![FieldIndex::FullTextIndex(
+                    match inverted_index_type {
+                        InvertedIndexType::InMemory => FullTextIndex::<InvertedIndexInMemory>::new(
+                        db,
+                        Default::default(),
+                        field,
+                    ),
+                    InvertedIndexType::OnDisk => FullTextIndex::<InvertedIndexOnDisk<'_>>::new(db, Default::default(), field)?,
+                }
             )],
-        },
-    }
+            },
+            PayloadFieldSchema::FieldParams(payload_params) => match payload_params {
+                PayloadSchemaParams::Text(text_index_params) => vec![FieldIndex::FullTextIndex(
+                    FullTextIndex::new(db, text_index_params.clone(), field),
+                )],
+            },
+        })
 }

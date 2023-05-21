@@ -20,6 +20,8 @@ use crate::index::field_index::{
 use crate::telemetry::PayloadIndexTelemetry;
 use crate::types::{FieldCondition, Match, PayloadKeyType, PointOffsetType};
 
+use super::inverted_index_on_disk::{InvertedIndexOnDisk, InvertedIndexOnDiskManager};
+
 pub struct FullTextIndex<I: InvertedIndex> {
     inverted_index: I,
     db_wrapper: DatabaseColumnWrapper,
@@ -35,6 +37,20 @@ impl FullTextIndex<InvertedIndexInMemory> {
             db_wrapper,
             config,
         }
+    }
+}
+
+impl FullTextIndex<InvertedIndexOnDisk<'_>> {
+    pub fn new(db: Arc<RwLock<DB>>, config: TextIndexParams, field: &str) -> OperationResult<Self> {
+        let store_cf_name = Self::storage_cf_name(field);
+        let db_wrapper = DatabaseColumnWrapper::new(db, &store_cf_name);
+        let index_manager = InvertedIndexOnDiskManager::new(db, field);
+        
+        Ok(FullTextIndex {
+                    inverted_index: index_manager.connect()?,
+                    db_wrapper,
+                    config,
+                })
     }
 }
 
@@ -281,7 +297,7 @@ mod tests {
         {
             let db = open_db_with_existing_cf(&tmp_dir.path().join("test_db")).unwrap();
 
-            let mut index = FullTextIndex::new(db, config.clone(), "text");
+            let mut index = FullTextIndex::<InvertedIndexInMemory>::new(db, config.clone(), "text");
 
             index.recreate().unwrap();
 
@@ -336,7 +352,7 @@ mod tests {
 
         {
             let db = open_db_with_existing_cf(&tmp_dir.path().join("test_db")).unwrap();
-            let mut index = FullTextIndex::new(db, config, "text");
+            let mut index = FullTextIndex::<InvertedIndexInMemory>::new(db, config, "text");
             let loaded = index.load().unwrap();
             assert!(loaded);
 
