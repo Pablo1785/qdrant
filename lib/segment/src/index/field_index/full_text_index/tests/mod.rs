@@ -2,8 +2,8 @@ use tempfile::Builder;
 
 use crate::common::rocksdb_wrapper::open_db_with_existing_cf;
 use crate::data_types::text_index::{TextIndexParams, TextIndexType, TokenizerType};
-use crate::index::field_index::full_text_index::InvertedIndexInMemory;
 use crate::index::field_index::full_text_index::text_index::FullTextIndex;
+use crate::index::field_index::full_text_index::InvertedIndexInMemory;
 use crate::index::field_index::ValueIndexer;
 use crate::types::PointOffsetType;
 

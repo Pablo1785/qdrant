@@ -45,12 +45,12 @@ impl FullTextIndex<InvertedIndexOnDisk<'_>> {
         let store_cf_name = Self::storage_cf_name(field);
         let db_wrapper = DatabaseColumnWrapper::new(db, &store_cf_name);
         let index_manager = InvertedIndexOnDiskManager::new(db, field);
-        
+
         Ok(FullTextIndex {
-                    inverted_index: index_manager.connect()?,
-                    db_wrapper,
-                    config,
-                })
+            inverted_index: index_manager.connect()?,
+            db_wrapper,
+            config,
+        })
     }
 }
 

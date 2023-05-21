@@ -4,9 +4,9 @@ use std::convert::Infallible;
 
 use serde::{Deserialize, Serialize};
 
-use super::InvertedIndexOnDisk;
 use super::posting_list::PostingList;
 use super::postings_iterator::intersect_postings_iterator;
+use super::InvertedIndexOnDisk;
 use crate::entry::entry_point::{OperationError, OperationResult};
 use crate::index::field_index::{CardinalityEstimation, PayloadBlockCondition, PrimaryCondition};
 use crate::types::{FieldCondition, Match, MatchText, PayloadKeyType, PointOffsetType};
